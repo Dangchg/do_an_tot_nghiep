@@ -1,17 +1,8 @@
 # imports
 import os
 import glob
-from dotenv import load_dotenv
-import gradio as gr
-from openai import OpenAI
-import functools
-from concurrent.futures import ThreadPoolExecutor
-from g4f.client import Client
-import time
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 import numpy as np
@@ -49,8 +40,11 @@ def load_data_from_folder(folders = glob.glob("Data/*")):
     
 
 def vector_store1(chunks):
-    embeddings = HuggingFaceEmbeddings(model_name="AITeamVN/Vietnamese_Embedding_v2")
-
+    embeddings = HuggingFaceEmbeddings(
+        model_name="AITeamVN/Vietnamese_Embedding_v2",
+        model_kwargs={"device": "cuda"},   # 👈 dùng GPU
+        encode_kwargs={"batch_size": 32}   # 👈 tăng batch để tận dụng GPU
+    )
 
     # Đặt tên cho database vector (có thể tùy chọn)
     db_name = "vector_db"
