@@ -133,14 +133,33 @@ def init_system2():
     # 4. Setup Chain
     global_chain = setup_rag_chain(hybrid_retriever)
 
-def chat_interface(message, history):
+def chat_interface(history_text, user_text):
     """Hàm xử lý chat cho Gradio"""
     if global_chain is None:
         return "Hệ thống đang khởi động, vui lòng đợi..."
-    
+
     try:
-        response = global_chain.invoke({"question": message})
-        return response["answer"]
+        response = global_chain.invoke({
+            "question": f"""
+Lịch sử:
+{history_text}
+
+Câu hỏi:
+{user_text}
+"""
+        })
+
+        # ✅ Normalize output (an toàn mọi trường hợp)
+        if isinstance(response, dict):
+            return (
+                response.get("output")
+                or response.get("answer")
+                or response.get("result")
+                or str(response)
+            )
+        else:
+            return str(response)
+
     except Exception as e:
         return f"Đã xảy ra lỗi: {str(e)}"
 
