@@ -88,10 +88,31 @@ if __name__ == "__main__":
         examples=examples
     ).launch()'''
 
-def ask_advisor(message):
-    """Hàm giao tiếp chính được gọi từ Router"""
+def ask_advisor(history_text, user_text):
+    """Gọi agent tư vấn ngành có sử dụng ngữ cảnh hội thoại"""
     try:
         chain = get_advisor_chain()
-        return chain.invoke({"question": message})
+
+        response = chain.invoke({
+            "question": f"""
+Lịch sử:
+{history_text}
+
+Câu hỏi:
+{user_text}
+"""
+        })
+
+        
+        if isinstance(response, dict):
+            return (
+                response.get("output")
+                or response.get("answer")
+                or response.get("result")
+                or str(response)
+            )
+        else:
+            return str(response)
+
     except Exception as e:
-        return f"Lỗi Advisor: {str(e)}"
+        return f"⚠️ Lỗi Advisor: {str(e)}"
