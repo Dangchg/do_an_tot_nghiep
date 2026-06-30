@@ -97,34 +97,6 @@ def quiz_logic(current_index, scores, selected_option_text):
         gr.update(visible=False)
     )
 
-# --- GIAO DIỆN DEMO ---
-'''with gr.Blocks(title="Tư vấn hướng nghiệp", theme=gr.themes.Base()) as demo:
-    gr.Markdown("# 🎓 Ứng dụng Tư vấn Hướng nghiệp AI")
-    
-    state_index = gr.State(0)
-    state_scores = gr.State({})
-    
-    with gr.Column():
-        q_display = gr.Markdown("Bấm bắt đầu...")
-        opt_radio = gr.Radio(label="Lựa chọn của bạn", interactive=True)
-        btn_next = gr.Button("Tiếp tục ➡", variant="primary")
-        res_display = gr.Markdown(visible=False)
-
-    btn_next.click(
-        quiz_logic,
-        [state_index, state_scores, opt_radio],
-        [state_index, state_scores, q_display, opt_radio, btn_next, res_display]
-    )
-    
-    # Tự động chạy khi mở app
-    demo.load(
-        quiz_logic,
-        [state_index, state_scores, gr.State(None)],
-        [state_index, state_scores, q_display, opt_radio, btn_next, res_display]
-    )
-
-if __name__ == "__main__":
-    demo.launch()'''
 
 # --- GIAO DIỆN --- 
 
