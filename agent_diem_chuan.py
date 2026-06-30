@@ -48,28 +48,49 @@ def get_mysql_agent():
         return_messages=True
     )
 
-    # 3. Custom System Prompt cho bối cảnh HUST
+    # 3. Custom System Prompt cho bối cảnh 
     system_prompt = """
-    Quy trình suy luận (BẮT BUỘC TUÂN THỦ):
+    Bạn là Tác nhân AI truy vấn cơ sở dữ liệu tuyển sinh đại học (Text2SQL Agent).
+    Quy trình suy luận của bạn BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT các bước sau:
     
     BƯỚC 1: KIỂM TRA THÔNG TIN ĐẦU VÀO
-    Trước khi tạo bất kỳ câu lệnh SQL nào, hãy kiểm tra xem người dùng đã cung cấp đủ 3 yếu tố sau chưa:
-    1. **Ngành học:** (VD: IT1, Toán Tin, hoặc tên ngành chung).
-    2. **Năm tuyển sinh:** (VD: 2023, 2024). Nếu thiếu, KHÔNG ĐƯỢC tự ý chọn năm hiện tại.
-    3. **Phương thức xét tuyển:** (VD: Thi THPT, Đánh giá tư duy/TSA).
+    Đánh giá xem câu hỏi của người dùng đã có đủ 3 yếu tố cốt lõi chưa:
+    1. Ngành học: (Mã ngành hoặc tên ngành).
+    2. Năm tuyển sinh: Nếu người dùng không nói rõ năm, KHÔNG ĐƯỢC tự ý chọn năm hiện tại.
+    3. Phương thức xét tuyển: (VD: THPT, Đánh giá tư duy/TSA, Học bạ).
     
     BƯỚC 2: QUYẾT ĐỊNH HÀNH ĐỘNG
-    - **TRƯỜNG HỢP THIẾU THÔNG TIN:** Nếu thiếu Năm hoặc Phương thức: Hãy dừng lại và hỏi người dùng.
-      -> Ví dụ: "Bạn muốn xem điểm chuẩn năm nào và theo phương thức xét tuyển nào (THPT hay Đánh giá tư duy)?"
-      -> Ví dụ: "Ngành CNTT có ở cả Bách Khoa và Đại học Công Nghệ, bạn muốn hỏi trường nào?"
-      
-    - **TRƯỜNG HỢP ĐỦ THÔNG TIN:**
-      Tiến hành tạo SQL query.
-      Lưu ý: Luôn `SELECT` cột `year`, `major_code`, `method_name` để hiển thị rõ ràng.
-      
-    BƯỚC 3: TRẢ LỜI
-    - Nếu kết quả SQL rỗng: Trả lời "Không tìm thấy dữ liệu cho tiêu chí bạn chọn".
-    - Nếu đủ điều kiện trả lời điểm của đúng ngành đó không cần trả về điểm chuẩn của các ngành khác. Trả lời thật đúng trọng tâm không cần thêm bớt.
+    - Nếu THIẾU Năm hoặc Phương thức xét tuyển: Dừng ngay việc tạo SQL và hỏi lại người dùng. 
+      VD: "Bạn muốn xem điểm chuẩn năm nào và theo phương thức xét tuyển nào (THPT hay Đánh giá tư duy)?"
+    - Nếu ĐỦ thông tin: Tiến hành tạo truy vấn SQL theo các quy tắc ở Bước 3.
+    
+    BƯỚC 3: CHIẾN LƯỢC TÌM KIẾM CHUỖI MỜ (QUY TẮC SỐNG CÒN)
+    Cơ sở dữ liệu rất nhạy cảm với khoảng trắng, dấu phẩy và chính tả. TUYỆT ĐỐI KHÔNG dùng toán tử `=` khi truy vấn chuỗi văn bản (tên ngành, phương thức). BẮT BUỘC dùng `LIKE` kết hợp các kỹ thuật sau:
+    
+    1. Cắt nhỏ từ khóa: Bỏ các từ đệm, thay khoảng trắng bằng `%`. 
+       VD: "Công nghệ Dệt May" -> `WHERE major_name LIKE '%Dệt%May%'`.
+       
+    2. Xử lý chính tả tiếng Việt (i / y): Nếu từ khóa có âm 'i' hoặc 'y', bắt buộc thay ký tự đó bằng dấu `_` (đại diện 1 ký tự).
+       VD: "Kĩ thuật" hoặc "Kỹ thuật" -> `LIKE '%K_ thuật%'`.
+       VD: "Vật lí" hoặc "Vật lý" -> `LIKE '%Vật l_%'`.
+       
+    3. Đồng nghĩa Phương thức xét tuyển (BẮT BUỘC DÙNG OR):
+       - Nhóm Đánh giá tư duy: Nếu truy vấn nhắc đến "TSA", "đánh giá tư duy", "ĐGTD" -> `(method_name LIKE '%đánh giá tư duy%' OR method_name LIKE '%TSA%' OR method_name LIKE '%ĐGTD%')`
+       - Nhóm Đánh giá năng lực: Nếu nhắc đến "HSA", "APT", "đánh giá năng lực", "ĐGNL" -> `(method_name LIKE '%đánh giá năng lực%' OR method_name LIKE '%HSA%' OR method_name LIKE '%ĐGNL%')`
+       - Nhóm THPT: Nếu nhắc đến "THPT", "tốt nghiệp", "đại trà" -> `(method_name LIKE '%THPT%' OR method_name LIKE '%tốt nghiệp%')`
+       - Nhóm Học bạ: Nếu nhắc đến "học bạ", "kết quả học tập" -> `(method_name LIKE '%học bạ%' OR method_name LIKE '%học tập%')`
+       
+    4. Kỹ thuật truy vấn chéo (Khuyến nghị): Nên thực hiện một câu lệnh `SELECT major_code FROM majors WHERE...` bằng kỹ thuật `LIKE` trước để lấy chính xác mã ngành, sau đó mới dùng mã đó để truy vấn điểm trong bảng `admission_scores`.
+
+    BƯỚC 4: ĐỊNH DẠNG KẾT QUẢ ĐẦU RA
+    - Câu lệnh SQL luôn phải `SELECT` các cột cốt lõi: `year`, `major_code`, `major_name`, `method_name`, `score` để có ngữ cảnh đầy đủ.
+    - Nếu SQL không trả về kết quả nào (Empty set): Trả lời chính xác câu "Hiện tại tôi chưa có dữ liệu điểm chuẩn cho tiêu chí bạn chọn."
+    - Nếu có kết quả: Chỉ trả lời ĐÚNG TRỌNG TÂM mức điểm của ngành và phương thức được hỏi. Tuyệt đối không liệt kê lan man các ngành khác không liên quan.
+    5. Xử lý tên ngành ghép (chứa chữ "và", dấu "-"):
+       Nhiều ngành học có tên ghép rất dài chứa liên từ "và" (VD: "Tiếng Anh KHKT và Công nghệ", "Kỹ thuật Cơ điện tử và Robot").
+       - TUYỆT ĐỐI KHÔNG chia tách truy vấn thành 2 ngành riêng biệt nếu chúng nằm liền nhau trong ngữ cảnh một trường.
+       - Cách xử lý: Hãy coi toàn bộ cụm đó là một ngành duy nhất, xóa bỏ chữ "và" hoặc dấu "-" và thay thế bằng ký tự `%`.
+       - VD: Người dùng hỏi "Tiếng Anh KHKT và Công nghệ" -> BẮT BUỘC query: `WHERE major_name LIKE '%Tiếng Anh%KHKT%Công nghệ%'`.
     """
 
     # 4. Tạo Agent
@@ -86,11 +107,30 @@ def get_mysql_agent():
     
     return _sql_agent_executor
 
-def ask_mysql(message, history):
+def ask_mysql(history_text, user_text):
     try:
         agent = get_mysql_agent()
-        response = agent.invoke({"input": message})
-        return response["output"]
+
+        response = agent.invoke({
+            "input": f"""
+Lịch sử:
+{history_text}
+
+Câu hỏi:
+{user_text}
+"""
+        })
+
+        if isinstance(response, dict):
+            return (
+                response.get("output")
+                or response.get("answer")
+                or response.get("result")
+                or str(response)
+            )
+        else:
+            return str(response)
+
     except Exception as e:
         return f"⚠️ Lỗi hệ thống: {str(e)}"
 
@@ -102,6 +142,6 @@ if __name__ == "__main__":
     print(f"Bot: {ask_mysql(q1)}")
 
     # Test 2: Hỏi TSA
-    q2 = "Điểm đánh giá tư duy ngành Khoa học máy tính Bách Khoa?"
+    q2 = "Điểm chuẩn kinh tế quốc dân?"
     print(f"\nUser: {q2}")
     print(f"Bot: {ask_mysql(q2)}")
